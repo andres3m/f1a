@@ -40,24 +40,33 @@ app.post('/api/ask', async (req: Request, res: Response) => {
   const { question } = req.body;
 
   try {
-    // LLM call
-    const response = await axios.post('https://api.llmprovider.com/v1/chat', {
-      question,
-    }, {
-      headers: {
-        'Authorization': `Bearer ${process.env.LLM_API_KEY}`,
+    // Llamada al API de Replicate
+    const replicateResponse = await axios.post(
+      'https://api.replicate.com/v1/predictions',
+      {
+        version: "latest", // La versión más reciente del modelo
+        input: { prompt: question },
+        model: "yorickvp/llava-13b", // Modelo específico
       },
-    });
+      {
+        headers: {
+          'Authorization': `Token ${process.env.REPLICATE_API_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
-    const answer = response.data.answer;
+    const modelOutput = replicateResponse.data.output; // Salida del modelo
 
-    // Save in MongoDB
-    const chat = new Chat({ question, response: answer });
+    // Guardar la pregunta y respuesta en MongoDB
+    const chat = new Chat({ question, response: modelOutput });
     await chat.save();
 
-    res.json({ question, response: answer });
+    // Enviar la respuesta al cliente
+    res.json({ question, response: modelOutput });
   } catch (error) {
-    res.status(500).json({ error: 'Error communicting to LLM' });
+    console.error('Error al interactuar con Replicate:', error);
+    res.status(500).json({ error: 'Error al interactuar con el modelo LLM en Replicate' });
   }
 });
 
