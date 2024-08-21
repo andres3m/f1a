@@ -1,11 +1,11 @@
 import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
-import axios from 'axios';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URI;
+const PORT = process.env.PORT || 3001;
 
 if (!MONGODB_URI) {
   console.error('Error: MongoDB URI not defined in .env file');
@@ -13,14 +13,12 @@ if (!MONGODB_URI) {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-
 app.use(express.json());
 
 // Connect to MongoDB
 mongoose.connect(MONGODB_URI)
   .then(() => {
-    console.log('Conected to MongoDB');
+    console.log('Connected to MongoDB');
   })
   .catch((error) => {
     console.error('Error connecting to MongoDB:', error);
@@ -35,38 +33,49 @@ const chatSchema = new mongoose.Schema({
 
 const Chat = mongoose.model('Chat', chatSchema);
 
-// Endpoint for handle LLM calls and answers
+// Declare model variable
+let model: any; // Use appropriate type if known
+
+// Load the model asynchronously
+const loadModel = async () => {
+  try {
+    const { AutoModel } = await import('@xenova/transformers');
+    model = await AutoModel.from_pretrained('TheBloke/Llama-2-7B-GGUF');
+    console.log('Model loaded successfully');
+  } catch (error) {
+    console.error('Error loading model:', error);
+    process.exit(1);
+  }
+};
+
+// Load the model when the server starts
+loadModel();
+
 app.post('/api/ask', async (req: Request, res: Response) => {
   const { question } = req.body;
 
+  if (!question) {
+    return res.status(400).json({ error: 'Question is required' });
+  }
+
   try {
-    // Llamada al API de Replicate
-    const replicateResponse = await axios.post(
-      'https://api.replicate.com/v1/predictions',
-      {
-        version: "latest", // La versión más reciente del modelo
-        input: { prompt: question },
-        model: "yorickvp/llava-13b", // Modelo específico
-      },
-      {
-        headers: {
-          'Authorization': `Token ${process.env.REPLICATE_API_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    if (!model) {
+      throw new Error('Model not loaded');
+    }
 
-    const modelOutput = replicateResponse.data.output; // Salida del modelo
+    // Use the model to generate a response
+    const modelResponse = await model.generate({ prompt: question, max_length: 50 });
+    const answer = modelResponse[0]?.generated_text || 'No response generated';
 
-    // Guardar la pregunta y respuesta en MongoDB
-    const chat = new Chat({ question, response: modelOutput });
+    // Save the question and response in MongoDB
+    const chat = new Chat({ question, response: answer });
     await chat.save();
 
-    // Enviar la respuesta al cliente
-    res.json({ question, response: modelOutput });
+    // Send the response to the frontend
+    res.json({ question, response: answer });
   } catch (error) {
-    console.error('Error al interactuar con Replicate:', error);
-    res.status(500).json({ error: 'Error al interactuar con el modelo LLM en Replicate' });
+    console.error('Error interacting with local LLM:', error);
+    res.status(500).json({ error: 'Error interacting with local LLM model' });
   }
 });
 
