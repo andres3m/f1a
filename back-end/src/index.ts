@@ -1,6 +1,9 @@
 import express, { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { fileURLToPath } from "url";
+import path from "path";
+import { LlamaModel, LlamaContext, LlamaChatSession } from "node-llama-cpp";
 
 dotenv.config();
 
@@ -33,15 +36,25 @@ const chatSchema = new mongoose.Schema({
 
 const Chat = mongoose.model('Chat', chatSchema);
 
-// Declare model variable
-let model: any; // Use appropriate type if known
+// Declare model, context, and session variables
+let session: LlamaChatSession | null = null;
 
 // Load the model asynchronously
 const loadModel = async () => {
   try {
-    const { AutoModel } = await import('@xenova/transformers');
-    model = await AutoModel.from_pretrained('TheBloke/Llama-2-7B-GGUF');
-    console.log('Model loaded successfully');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    
+    // Load the model
+    const model = new LlamaModel({
+      modelPath: path.join(__dirname, "models", "llama-2-7b.Q4_K_S.gguf") // Make sure this path is correct
+    });
+
+    const context = new LlamaContext({ model });
+    
+    // Initialize the chat session
+    session = new LlamaChatSession({ context });
+
+    console.log('Model and session loaded successfully');
   } catch (error) {
     console.error('Error loading model:', error);
     process.exit(1);
@@ -49,7 +62,12 @@ const loadModel = async () => {
 };
 
 // Load the model when the server starts
-loadModel();
+(async () => {
+  await loadModel();
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+})();
 
 app.post('/api/ask', async (req: Request, res: Response) => {
   const { question } = req.body;
@@ -59,13 +77,15 @@ app.post('/api/ask', async (req: Request, res: Response) => {
   }
 
   try {
-    if (!model) {
-      throw new Error('Model not loaded');
+    if (!session) {
+      return res.status(503).json({ error: 'Model not loaded yet. Please try again later.' });
     }
 
-    // Use the model to generate a response
-    const modelResponse = await model.generate({ prompt: question, max_length: 50 });
-    const answer = modelResponse[0]?.generated_text || 'No response generated';
+    // Use the session to generate a response based on the question
+    console.log("User: " + question);
+    
+    const answer = await session.prompt(question);
+    console.log("AI: " + answer);
 
     // Save the question and response in MongoDB
     const chat = new Chat({ question, response: answer });
@@ -77,8 +97,4 @@ app.post('/api/ask', async (req: Request, res: Response) => {
     console.error('Error interacting with local LLM:', error);
     res.status(500).json({ error: 'Error interacting with local LLM model' });
   }
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
 });
