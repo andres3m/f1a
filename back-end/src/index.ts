@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from "url";
 import path from "path";
 import { LlamaModel, LlamaContext, LlamaChatSession } from "node-llama-cpp";
+import { log } from 'console';
 
 dotenv.config();
 
@@ -85,14 +86,19 @@ app.post('/api/ask', async (req: Request, res: Response) => {
     console.log("User: " + question);
     
     const answer = await session.prompt(question);
-    console.log("AI: " + answer);
+    console.log(`Raw AI answer: ${answer}`);
+    
+    const cleanedAnswer = answer.split('\n')[0].trim();
+    console.log("AI: " + cleanedAnswer);
 
     // Save the question and response in MongoDB
-    const chat = new Chat({ question, response: answer });
+    const chat = new Chat({ question, response: cleanedAnswer, createdAt: Date.now() });
     await chat.save();
+    console.log("Question/answer saved in MongoDB");
+    
 
     // Send the response to the frontend
-    res.json({ question, response: answer });
+    res.json({ question, response: cleanedAnswer });
   } catch (error) {
     console.error('Error interacting with local LLM:', error);
     res.status(500).json({ error: 'Error interacting with local LLM model' });
