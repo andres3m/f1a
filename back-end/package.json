@@ -12,17 +12,22 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@langchain/mongodb": "^0.0.5",
     "@xenova/transformers": "^2.17.2",
     "axios": "^1.7.4",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "fs": "^0.0.1-security",
+    "langchain": "^0.2.17",
     "mongodb": "^6.8.0",
     "mongoose": "^8.5.3",
-    "node-llama-cpp": "^2.8.15"
+    "node-llama-cpp": "^2.8.15",
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.4.1",
+    "@types/pdf-parse": "^1.1.4",
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4"

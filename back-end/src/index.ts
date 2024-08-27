@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from "url";
 import path from "path";
 import { LlamaModel, LlamaContext, LlamaChatSession } from "node-llama-cpp";
+import { retrieveFromPDF, processQuery } from './llamaService';
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ if (!MONGODB_URI) {
   process.exit(1);
 }
 
+// Express server setup
 const app = express();
 app.use(express.json());
 
